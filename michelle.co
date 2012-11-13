@@ -1,0 +1,41 @@
+const STATIC_PATH = "#{__dirname}/static"
+const ASSET_PATH = "#{__dirname}/assets"
+const PORT = 26989
+
+###########################
+
+express = require 'express'
+mysql = require 'mysql'
+coco = require 'coco'
+fs = require 'fs'
+
+###########################
+
+app = express!
+
+app.use '/static', express.static STATIC_PATH
+app.use express.body-parser!
+
+app.get '/', !(req, res) -> res.sendfile "#{ASSET_PATH}/shell.html"
+app.get '/client.js', !(req, res) ->
+	res.set 'Content-Type', 'text/javascript'
+	res.send coco.compile fs.read-file-sync("#{ASSET_PATH}/client.co", "UTF-8")
+
+app.post '/q', !(req, res) -> 
+	connection = mysql.create-connection {
+		host:		req.param("host") || "localhost"
+		user:		req.param("username") || "root"
+		password:	req.param("password") || "root"
+		database:	req.param("database") || null
+		flags:		"FOUND_ROWS" # XXX: this isn't exposed to client
+		nestTables: '.'
+	}
+	t0 = +new Date()
+	connection.query req.param("sql"), !(error, rows, fields) ->
+		qtime = (+new Date()) - t0
+		return res.json {qtime, error: (error{message, code, fatal})} if error
+		return res.json {qtime, rows, fields}
+	connection.end!
+
+app.listen PORT
+console.log "Michelle is listening on port #PORT"

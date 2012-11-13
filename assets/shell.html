@@ -1,0 +1,36 @@
+<!DOCTYPE HTML>
+<html lang="en-US">
+<head>
+	<meta charset="UTF-8">
+	<title>Michelle &ndash; a MySQL Shell</title>
+	<link rel="stylesheet" href="/static/css/bootstrap.css">
+	<link rel="stylesheet" href="/static/css/michelle.css">
+	<script src="/static/js/jquery.js"></script>
+	<script src="/static/js/bootstrap.js"></script>
+	<script src="/static/js/underscore.js"></script>
+	<script src="/static/js/jquery.autocomplete.js"></script>
+	<script src="/client.js"></script>
+</head>
+<body>
+	<br>
+	<div class="container-fluid">
+		<div class="row-fluid">
+			<div class="span3">
+				<ul class="nav nav-list">
+					<li class="nav-header">Databases</li>
+					<form class="form-search"><input type="search" class="search-query" id="choose-database" placeholder="Choose database"></form>
+					<li class="nav-header">Tables in <span class="current-database-name"></span></li>
+					<ul class="nav nav-list" id="tables-list"></ul>
+				</ul>
+			</div>
+			<div class="span9">
+				<div class="controls controls-row" style="margin-bottom:3px">
+  					<input class="span8" id="query-box" placeholder="SQL">
+  					<div id="query-stats"></div>
+  				</div>
+				<div id="table-content"></div>
+			</div>
+		</div>
+	</div>
+</body>
+</html>

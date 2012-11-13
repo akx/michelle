@@ -1,0 +1,132 @@
+const debug = (location.search.index-of("debug") > -1)
+database-list = []
+current-database = null
+table-list = []
+current-table = null
+autocomplete-words = {}
+table-schemata = {}
+$query-box = null
+$database-box = null
+
+query = (sql, callback, database=current-database) ->
+	data, status, jqXHR <- $.post "/q", {sql, database}, ..., "json"
+	data <<< {database}
+	callback? data
+
+
+add-autocomplete-words = !-> autocomplete-words[word] = true for word of it
+
+update-autocomplete-words = !->
+	add-autocomplete-words table-list
+	add-autocomplete-words database-list
+	for schemaname, columns in table-schemata
+		add-autocomplete-words (c.Field for c of columns)
+
+	# ... and update
+	$query-box.set-options(data: _.keys autocomplete-words) if $query-box
+
+
+
+load-databases = !->
+	data <- query "SHOW DATABASES"
+	database-list := (r.Database for r of data.rows)
+	update-autocomplete-words!
+
+load-current-tables = !->
+	data <- query "SHOW TABLES"
+	field-name = data.fields.0.name
+	table-list := (r[field-name] for r of data.rows)
+	update-table-list!
+	update-autocomplete-words!
+
+load-table-schema = (table) ->
+	data <- query "SHOW COLUMNS FROM #{table}"
+	table-schemata["#{data.database}:#{table}"] = data.rows
+	update-autocomplete-words!
+
+table-template = _.template """<% var cn = columns.length; %>
+<table class="table table-striped table-condensed table-hover">
+	<thead>
+		<tr><% for(var i=0; i < cn; i++) { %><th><%- columns[i] %></th><% } %></tr>
+	</thead>
+	<tbody>
+		<% for(var y=0; y<rows.length; y++) { var row = rows[y]; %><tr>
+			<% for(var i=0; i < cn; i++) { %><td><%- row[columns[i]] %></td><% } %>
+		</tr><% } %>
+	</tbody>
+</table>
+"""
+
+query-and-display = !(sql) ->
+	data <- query sql
+	$('#query-stats').text "Time: #{data.qtime} ms, #{data.rows?.length || 0} rows"
+	return alert data.error.message if data.error
+	columns = (f.name for f of data.fields)
+	add-autocomplete-words columns
+	$('#table-content').empty!.append table-template({rows:data.rows, columns})
+
+set-current-database = (database) ->
+	current-database := database
+	$('.current-database-name').text database
+	$('#tables-list').empty!
+	load-current-tables!
+	local-storage["last-database"] = database
+
+set-current-table = (table) ->
+	$('#tables-list li').removeClass "active"
+	$("a[rel=#{table}]").parent("li").addClass "active"
+	current-table := table
+	load-table-schema current-table
+
+update-table-list = !->
+	list-el = $('#tables-list')	
+	list-el.empty!
+	for table of table-list
+		list-el.append list-item = $("<li>")
+		list-item.append $ "<a>", {
+			class:	"table-link"
+			rel:	table
+			text:	table
+			title:	table
+			href:	"#"
+		}
+
+select-table = (event) ->
+	set-current-table @rel
+	query-and-display "SELECT * FROM #{current-table}"
+
+$ !->
+	load-databases!
+	$('.table-link').live "click", select-table
+	
+	let
+		$database-box := $('#choose-database')
+			&typeahead {
+				source: -> database-list
+				updater: -> set-current-database it; return it
+			}
+			&keyup -> set-current-database(&val!) if it.key-code == 13
+	
+	let
+		$query-box := $('#query-box')
+			&autocomplete([], {+multiple, +match-contains})
+			
+			&keyup ->
+				return unless it.key-code == 13
+				query = &val!
+				local-storage["last-query"] = query
+				local-storage["last-query:#{current-database}"] = query
+				query-and-display query
+
+	if debug then
+		setTimeout (->
+			set-current-database "information_schema"
+			query-and-display "SELECT * FROM ENGINES"
+		), 100
+	else
+		last-database = local-storage["last-database"]
+		last-query = (local-storage["last-query"] || "")
+		if last-database then
+			set-current-database last-database
+			last-query = local-storage["last-query:#{last-database}"] || last-query
+		$query-box.val last-query
